@@ -1,31 +1,77 @@
 package icons
 
-import "strings"
+import (
+	"strings"
 
-func BoxIcon(name string) IconFunc {
+	"github.com/a-h/templ"
+)
+
+func BoxIcon(name string, props ...IconProps) templ.Component {
 	if !strings.Contains(name, "bx") {
 		name = "bx-" + name
 	}
 
-	return Icon(name, BOX)
+	if len(props) > 0 {
+		props[0].Family = BOX
+		return Icon(name, props[0])
+	}
+	return Icon(name, IconProps{Family: BOX})
 }
 
-func BootstrapIcon(name string) IconFunc {
-	return Icon(name, BOOTSTRAP)
+func BootstrapIcon(name string, props ...IconProps) templ.Component {
+	if len(props) > 0 {
+		props[0].Family = BOOTSTRAP
+		return Icon(name, props[0])
+	}
+
+	return Icon(name, IconProps{Family: BOOTSTRAP})
 }
 
-func IonicIcon(name string) IconFunc {
-	return Icon(name, IONIC)
+func IonicIcon(name string, props ...IconProps) templ.Component {
+	if len(props) > 0 {
+		props[0].Family = IONIC
+		return Icon(name, props[0])
+	}
+	return Icon(name, IconProps{Family: IONIC})
 }
 
-func LineIcon(name string) IconFunc {
-	return Icon(name, LINE)
+func LineIcon(name string, props ...IconProps) templ.Component {
+	if len(props) > 0 {
+		props[0].Family = LINE
+		return Icon(name, props[0])
+	}
+	return Icon(name, IconProps{Family: LINE})
 }
 
-func MaterialDesignIcon(name string) IconFunc {
-	return Icon(name, MDI)
+func MaterialDesignIcon(name string, props ...IconProps) templ.Component {
+	if len(props) > 0 {
+		props[0].Family = MDI
+		return Icon(name, props[0])
+	}
+	return Icon(name, IconProps{Family: MDI})
 }
 
-func HeroIcon(name string) IconFunc {
-	return Icon(name, HERO)
+func HeroIcon(name string, props ...IconProps) templ.Component {
+	if len(props) > 0 {
+		props[0].Family = HERO
+		return Icon(name, props[0])
+	}
+	return Icon(name, IconProps{Family: HERO})
+}
+
+func FontAwesomeIcon(name string, props ...IconProps) templ.Component {
+	if len(props) > 0 {
+		props[0].Family = FA
+		return Icon(name, props[0])
+	}
+	return Icon(name, IconProps{Family: FA})
+
+}
+func LucideIcon(name string, props ...IconProps) templ.Component {
+	if len(props) > 0 {
+		props[0].Family = LUCIDE
+		return Icon(name, props[0])
+	}
+	return Icon(name, IconProps{Family: LUCIDE})
+
 }

@@ -2,8 +2,10 @@ package icons
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"sync"
 
@@ -13,10 +15,12 @@ import (
 // SVGMap holds icon names mapped to their SVG content (raw string literal).
 type SVGMap map[string]string
 
+type csSVGMap SVGMap
+
 var (
 	iconContents = make(map[string]string)
 	iconMutex    sync.RWMutex
-	customSVGMap = make(SVGMap)
+	customSVGMap = make(csSVGMap)
 	defFamily    = MDI
 )
 
@@ -24,15 +28,29 @@ const (
 	BOX       = "box"
 	BOOTSTRAP = "bootstrap"
 	CUSTOM    = "custom"
+	FA        = "fa"
 	IONIC     = "ionic"
 	LINE      = "line"
+	LUCIDE    = "lucide"
 	MDI       = "material-design"
 	HERO      = "hero"
 )
 
+var iconfamilyMap = map[string]any{
+	BOOTSTRAP: bs_iconSvgData,
+	BOX:       bxSVGMap,
+	FA:        fa_iconSvgData,
+	HERO:      hero_iconSvgData,
+	IONIC:     ionic_iconSvgData,
+	LINE:      line_iconSvgData,
+	LUCIDE:    lucide_iconSvgData,
+	MDI:       mdi_iconSvgData,
+	CUSTOM:    customSVGMap,
+}
+
 func SetDefaultFamily(family string) error {
 	switch family {
-	case HERO, BOX, BOOTSTRAP, IONIC, LINE, MDI:
+	case BOX, BOOTSTRAP, FA, HERO, IONIC, LINE, LUCIDE, MDI:
 		defFamily = family
 	default:
 		return fmt.Errorf("invalid icon family: %s. \nusing default: %s", family, defFamily)
@@ -42,57 +60,68 @@ func SetDefaultFamily(family string) error {
 	return nil
 }
 
-func Icon(name string, family ...string) IconFunc {
+type IconProps struct {
+	Variant string
+	Family  string
+	Class   string
+	Attrs   templ.Attributes
+}
+
+func Icon(name string, props ...IconProps) templ.Component {
 	var iconFamily = defFamily
-	if len(family) != 0 {
-		iconFamily = family[0]
+
+	p := IconProps{}
+	if len(props) > 0 {
+		p = props[0]
 	}
-	return func(props ...SvgProps) templ.Component {
-		var p SvgProps
-		if len(props) > 0 {
-			p = props[0]
-		}
-		iconMutex.Lock()
-		defer iconMutex.Unlock()
 
-		cacheKey := fmt.Sprintf("%s|f:%s|c:%s", name, iconFamily, props[0].Class)
-		return templ.ComponentFunc(func(ctx context.Context, w io.Writer) error {
-			iconMutex.RLock()
-			svg, cached := iconContents[cacheKey]
-			iconMutex.RUnlock()
+	if p.Family != "" {
+		iconFamily = p.Family
+	}
 
-			if cached {
-				_, err := w.Write([]byte(svg))
-				if err != nil {
-					return err
-				}
-				return nil
-			}
+	iconMutex.Lock()
+	defer iconMutex.Unlock()
 
-			// Not cached, generate it
-			// The actual generation now happens once and is cached.
-			generatedSvg, err := generateSVG(name, iconFamily, p) // p (Props) is passed to generateSVG
-			if err != nil {
-				// Provide more context in the error message
-				return fmt.Errorf("failed to generate svg for icon '%s' with props %+v: %w", name, p, err)
-			}
-			// log.Println(generatedSvg)
+	cacheKey := fmt.Sprintf("%s|f:%s|c:%s", name, iconFamily, p.Class)
+	return templ.ComponentFunc(func(ctx context.Context, w io.Writer) error {
+		iconMutex.RLock()
+		svg, cached := iconContents[cacheKey]
+		iconMutex.RUnlock()
 
-			iconMutex.Lock()
-			iconContents[cacheKey] = generatedSvg
-			iconMutex.Unlock()
-
-			_, err = w.Write([]byte(generatedSvg))
+		if cached {
+			_, err := w.Write([]byte(svg))
 			return err
-		})
-	}
+		}
+
+		// Not cached, generate it
+		// The actual generation now happens once and is cached.
+		generatedSvg, err := generateSVG(name, iconFamily, p) // p (Props) is passed to generateSVG
+		if err != nil {
+			// Provide more context in the error message
+			return fmt.Errorf("failed to generate svg for icon '%s' with props %+v: %w", name, p, err)
+		}
+		// log.Println(generatedSvg)
+
+		iconMutex.Lock()
+		iconContents[cacheKey] = generatedSvg
+		iconMutex.Unlock()
+
+		_, err = w.Write([]byte(generatedSvg))
+		return err
+	})
 
 }
 
-func generateSVG(name, family string, props SvgProps) (string, error) {
-	content, err := getIconContent(name, family)
-	if err != nil {
-		return "", err
+func generateSVG(name, family string, props IconProps) (string, error) {
+
+	content, exist := iconfamilyMap[family].(SVGMap)[name]
+
+	if !exist {
+		content, exist = iconfamilyMap[MDI].(SVGMap)[name]
+		if !exist {
+			return "", fmt.Errorf("icon not found: %s", name)
+		}
+
 	}
 
 	str := strings.Builder{}
@@ -111,36 +140,9 @@ func generateSVG(name, family string, props SvgProps) (string, error) {
 
 }
 
-func getIconContent(name string, family string) (string, error) {
-	content := ""
-	exists := false
-	switch family {
-	case HERO:
-		content, exists = hero_iconSvgData[name]
-	case BOX:
-		content, exists = bxSVGMap[name]
-	case BOOTSTRAP:
-		content, exists = bs_iconSvgData[name]
-	case MDI:
-		content, exists = mdi_iconSvgData[name]
-	case IONIC:
-		content, exists = ionic_iconSvgData[name]
-	case LINE:
-		content, exists = line_iconSvgData[name]
-	case CUSTOM:
-		content, exists = customSVGMap[name]
-	default:
-		return "", fmt.Errorf("invalid icon family: %s", family)
-	}
-	if !exists {
-		return "", fmt.Errorf("icon not found: %s", name)
-	}
-	return content, nil
-}
-
-func (s SVGMap) AddSvg(name, content string) error {
-	if _, exists := s[name]; exists {
-		return fmt.Errorf("svg already exists: %s", name)
+func AddCustomSvg(name, content string) error {
+	if _, exist := customSVGMap[name]; exist {
+		return fmt.Errorf("svg already exist: %s", name)
 	}
 
 	customSVGMap[name] = content
@@ -148,97 +150,83 @@ func (s SVGMap) AddSvg(name, content string) error {
 
 }
 
-func GetIconCount() int {
-	return len(hero_iconSvgData) + len(bxSVGMap) + len(bs_iconSvgData) + len(ionic_iconSvgData) + len(line_iconSvgData) + len(mdi_iconSvgData) + len(customSVGMap)
+func GetAvailableIconCount() int {
+	count := 0
+	for _, m := range iconfamilyMap {
+		count += len(m.(SVGMap))
+	}
+	return count
 
 }
 
-type MultiError []error
+func GetSVGMapFromJSON(jsonStr string) error {
+	err := json.Unmarshal([]byte(jsonStr), &customSVGMap)
+	if err != nil {
+		return err
+	}
+	return nil
+}
 
-func (me MultiError) Error() string {
-	if len(me) == 0 {
-		return ""
+func SaveCustomSvgMapToFile(filePath string) error {
+	// 1. Marshal the data into a JSON byte slice
+	jsonData, err := json.MarshalIndent(customSVGMap, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal JSON: %w", err)
 	}
-	// Join all individual error messages with a newline for readability
-	s := make([]string, len(me))
-	for i, err := range me {
-		s[i] = err.Error()
+
+	// 2. Write the JSON byte slice to the file
+	// 0644 sets standard read/write permissions for the file owner.
+	if err := os.WriteFile(filePath, jsonData, 0644); err != nil {
+		return fmt.Errorf("failed to write to file %s: %w", filePath, err)
 	}
-	return "Multiple errors occurred:\n" + strings.Join(s, "\n")
+	return nil
+}
+
+func LoadCustomSvgMapFromFile(filePath string) error {
+	data, err := os.ReadFile(filePath)
+
+	if err != nil {
+		return fmt.Errorf("error reading file %s: %w", filePath, err)
+	}
+
+	if err := json.Unmarshal(data, &customSVGMap); err != nil {
+		return fmt.Errorf("failed to unmarshal JSON: %w", err)
+	}
+	return nil
 }
 
 func GetAvailableIcons(families ...string) ([]string, error) {
 	var icons []string
 
-	var errs MultiError
 	if len(families) != 0 {
 		for _, family := range families {
-			switch family {
-			case HERO:
-				for k := range hero_iconSvgData {
-					icons = append(icons, k)
-				}
-			case BOX:
-				for k := range bxSVGMap {
-					icons = append(icons, k)
-				}
-			case BOOTSTRAP:
-				for k := range bs_iconSvgData {
-					icons = append(icons, k)
-				}
-			case IONIC:
-				for k := range ionic_iconSvgData {
-					icons = append(icons, k)
-				}
-			case LINE:
-				for k := range line_iconSvgData {
-					icons = append(icons, k)
-				}
-			case MDI:
-				for k := range mdi_iconSvgData {
-					icons = append(icons, k)
-				}
-			case CUSTOM:
-				for k := range customSVGMap {
-					icons = append(icons, k)
-				}
-			default:
-				errs = append(errs, fmt.Errorf("invalid icon family: %s", family))
+			f, exist := iconfamilyMap[family]
+			if !exist {
 
+				return nil, fmt.Errorf("invalid icon family: %s", family)
+			}
+
+			for k := range f.(SVGMap) {
+				icons = append(icons, k)
 			}
 		}
 
-		return icons, errs
-	}
-	for k := range hero_iconSvgData {
-		icons = append(icons, k)
-	}
-	for k := range bxSVGMap {
-		icons = append(icons, k)
-	}
-	for k := range bs_iconSvgData {
-		icons = append(icons, k)
+		return icons, nil
 	}
 
-	for k := range ionic_iconSvgData {
-		icons = append(icons, k)
+	for _, m := range iconfamilyMap {
+		for k := range m.(SVGMap) {
+			icons = append(icons, k)
+		}
 	}
-	for k := range line_iconSvgData {
-		icons = append(icons, k)
-	}
-	for k := range mdi_iconSvgData {
-		icons = append(icons, k)
-	}
-	for k := range customSVGMap {
-		icons = append(icons, k)
-	}
-	return icons, errs
+
+	return icons, nil
 
 }
 
 func GetCachedIcons() []string {
 	var ics = make([]string, 0, len(iconContents))
-	iconMutex.Lock()
+	iconMutex.RLock()
 	defer iconMutex.Unlock()
 	for k := range iconContents {
 		ics = append(ics, k)
@@ -246,9 +234,8 @@ func GetCachedIcons() []string {
 	return ics
 }
 
-type SvgProps struct {
-	Class string
-	Attrs templ.Attributes
-}
+type Component struct{}
 
-type IconFunc func(...SvgProps) templ.Component
+func (c Component) Render(ctx context.Context, w io.Writer) error {
+	return nil
+}

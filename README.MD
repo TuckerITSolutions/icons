@@ -23,7 +23,7 @@ import (
 )
 
 func main() {
-	icons.Home()(icons.SvgProps{Attrs: map[string]string{"width": "24", "height": "24"}})
+	icons.Home()
 }
 ```
 
@@ -38,15 +38,17 @@ import (
 )
 
 func main() {
-    icons.Icon("page-last")(icons.SvgProps{Attrs: map[string]string{"width": "24", "height": "24"}})
+    icons.Icon("page-last", icons.SvgProps{Attrs: map[string]string{"width": "24", "height": "24"}})
 }
 ```
 
 This will output the SVG code for the home icon.
 
-## Available Icons
+## Example Available Icons
 
-There are currently 14387 icons available across all icon families
+There are currently 16034 icons available across all icon families (box, bootstrap, hero, ionic, line, lucide, mdi).
+
+All Icons show as Material Design Icon by default.
 
 *   `Home()`: A house icon.
 *   `Settings()`: A gear icon.
@@ -65,6 +67,7 @@ There are currently 14387 icons available across all icon families
 Simply add the variation of icon you would like to display.
 
 * `Chevron("up", "circle", "outline)`: Produces the chevron-up-circle-outline icon from material design icons.
+
 ## Contributing
 
 If you'd like to contribute new icons or improve existing ones, please feel free to open a pull request.
