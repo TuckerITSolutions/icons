@@ -233,9 +233,3 @@ func GetCachedIcons() []string {
 	}
 	return ics
 }
-
-type Component struct{}
-
-func (c Component) Render(ctx context.Context, w io.Writer) error {
-	return nil
-}
